@@ -1,8 +1,13 @@
-
 # card suits: '♣', '♠', '♦', '♥'
-
+import inquirer, re, string
 from random import shuffle
 from time import sleep
+
+confirm = {inquirer.Confirm('confirmed', message="要不要继续发牌？"),}
+rechip = {inquirer.Confirm('confirmed', message="要换新的筹码继续玩么？")}
+#pick_with_split = [inquirer.List('picks', message="请选择你要继续哪个操作？", choices=['yes', 'no', 'split', 'double'],),]
+pick_no_split = [inquirer.List('picks', message="请选择你要继续哪个操作？", choices=['yes', 'no', 'double'],),]
+pick_no_double = [inquirer.List('picks', message="请选择你要继续哪个操作？", choices=['yes', 'no'],),]
 
 
 # 初始化一副牌
@@ -60,6 +65,127 @@ def is_Blackjack(hand_card):
         return True
     else:
         return False
+##是不是满足split
+def is_qualified_split(player_hand):
+    if player_hand[0][2:] != player_hand[1][2:]:
+        print('不可以split')
+        return False
+    else:
+        print('可以split')
+        return True
+
+#不同选择的function
+# def split_choice(choice, player_hand, deck, myhand, hisrealhand, dealer_hand):
+#     while choice == 'split':
+#         print('先玩这堆：')
+#         player_hand = player_hand[0]
+#         myhand = '你手中的牌为： %s' % (player_hand[0])
+#         deal_card(deck, player_hand)
+#         print('给你发了一张: %s' % player_hand[-1])
+#         myhand += ' ' + player_hand[-1]
+#         print(myhand)
+#         sleep(1)
+#         if is_qualified_split(player_hand):
+#             choice = inquirer.prompt(pick_with_split)
+#             choice = choice.get('picks')
+#         else:
+#             choice = inquirer.prompt(pick_no_split)
+#             choice = choice.get('picks')
+#             yes_choice(deck, player_hand, myhand, choice, hisrealhand, dealer_hand)
+#             no_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand)
+
+def yes_choice(deck, player_hand, myhand, choice, hisrealhand, dealer_hand):
+    while choice == 'yes':
+        sleep(1)
+        deal_card(deck, player_hand)
+        print('给你发了一张: %s' % player_hand[-1])
+        myhand += ' ' + player_hand[-1]
+        print(myhand)
+        sleep(1)
+        if is_boosted(player_hand):
+            print('你爆了！下一局。。。')
+            return dealerwin
+        else:
+            choice = inquirer.prompt(pick_no_split)
+            choice = choice.get('picks')
+    return no_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand)
+
+
+def no_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand):
+    while choice == 'no' or choice == 'double':
+        sleep(1)
+        print('看下庄家牌：')
+        print('庄家手牌为：' + hisrealhand)
+        sleep(1)
+        while calculate_hand(dealer_hand) < 17:
+            print('Dealer 没有到17， 给dealer发牌！')
+            sleep(1)
+            deal_card(deck, dealer_hand)
+            print('Dealer发了一张: %s' % dealer_hand[-1])
+            sleep(1)
+            hisrealhand += ' ' + dealer_hand[-1]
+            print(hisrealhand)
+            sleep(1)
+            if is_boosted(dealer_hand):
+                print('Dealer 爆了！你赢了！')
+                return playerwin
+
+        print('Dealer 牌发完了！现在计算谁获胜！')
+        sleep(2)
+        print(myhand)
+        sleep(2)
+        print(hisrealhand)
+        sleep(2)
+        if calculate_hand(dealer_hand) > calculate_hand(player_hand):
+            print('Dealer 获胜！')
+            return dealerwin
+        elif calculate_hand(dealer_hand) < calculate_hand(player_hand):
+            print('玩家获胜')
+            return playerwin
+        else:
+            print('打平!')
+            return draw
+def is_valid_double(gamble_money, money):
+    # 检查筹码能不能double
+    qualify = None
+    if gamble_money * 2 > money:
+        print('你需要充值，不然不能double')
+        print('你现在有 %.1f 筹码.' % money)
+        print('你需要充值至少 >= %.1f 筹码.' % (gamble_money * 2 - money))
+        try_count = 0
+        add_money = 0
+        for i in range(5):
+            add_money = [inquirer.Text('chips', message="冲多少？", validate=lambda _, x: re.match('^[0-9]*[\.[0-9]*$', x))]
+            add_money = inquirer.prompt(add_money)
+            add_money = add_money.get('chips')
+            if float(add_money) < (gamble_money * 2 - money):
+                print('你需要充值至少 >= %.1f 筹码.' % (gamble_money * 2 - money))
+                try_count += 1
+            else:
+                break
+        if try_count >= 5:
+            print('你不愿充值就算了，正常玩吧！')
+            qualify = False
+            return qualify
+        qualify = True
+        money += float(add_money)
+        gamble_money = float(gamble_money)*2
+        return qualify,money,gamble_money
+
+def double_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand):
+    while choice == 'double':
+        sleep(1)
+        print('你选择了%s, 只给你发一张~~good luck!' %choice)
+        deal_card(deck, player_hand)
+        print('给你发了一张: %s' % player_hand[-1])
+        myhand += ' ' + player_hand[-1]
+        print(myhand)
+        sleep(1)
+        if is_boosted(player_hand):
+            print('你爆了！下一局。。。')
+            return dealerwin
+        else:
+            return no_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand)
 
 
 ##check是不是爆掉了
@@ -70,8 +196,7 @@ def is_boosted(hand_card):
     else:
         return False
 
-
-def blackjack():
+def blackjack(gamble_money, money):
     print('Game is Started!')
     deck = shuffle_card()
     dealer_hand = []
@@ -82,11 +207,11 @@ def blackjack():
     global playerwin
     global draw
     global player21win
-    dealerwin = 'dwin'
+    dealerwin = 'dealerwin'
     playerwin = 'playerwin'
     draw = 'draw'
     player21win = 'blackjackwin'
-
+    choice = None
     print('现在开始发牌！')
     sleep(1)
 
@@ -101,67 +226,48 @@ def blackjack():
     sleep(1)
     if is_Blackjack(player_hand) and is_Blackjack(dealer_hand):
         print('Draw! Next Round!')
-        return draw
+        return draw,choice
     elif is_Blackjack(player_hand) and not is_Blackjack(dealer_hand):
         print('Player Win!')
-        return player21win
+        return player21win,choice
     elif is_Blackjack(dealer_hand) and not is_Blackjack(player_hand):
         print('Dealer Win!')
         print('Dealer 手牌为： %s %s' % (dealer_hand[0], dealer_hand[1]))
-        return dealerwin
+        return dealerwin,choice
 
-    choice = input('要不要继续发牌？y/n： ')
-    while choice in ('y' or 'Y' or 'y\'' or 'Y\''):
-        sleep(1)
-        deal_card(deck, player_hand)
-        print('给你发了一张: %s' % player_hand[-1])
-        myhand += ' ' + player_hand[-1]
-        print('你现在的手牌为： ' + myhand)
-        sleep(1)
-        if is_boosted(player_hand):
-            print('你爆了！下一局。。。')
-            return dealerwin
+    result = ''
+    # if is_qualified_split(player_hand):
+    #     choice = inquirer.prompt(pick_no_split)
+    #     choice = choice.get('picks')
+    # else:
+    choice = inquirer.prompt(pick_no_split)
+    choice = choice.get('picks')
+
+    # if choice == 'split':
+    #     split_choice(choice,player_hand)
+    #else:
+    if choice == 'yes':
+        result = yes_choice(deck, player_hand, myhand, choice, hisrealhand, dealer_hand)
+
+    elif choice == 'no':
+        result = no_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand)
+
+    elif choice == 'double':
+        qualify, money, gamble_money = is_valid_double(gamble_money,money)
+        if qualify:
+            result = double_choice(choice, hisrealhand, dealer_hand, deck, myhand, player_hand)
         else:
-            choice = input('要不要继续发牌？y/n： ')
-
-    if choice == 'n' or 'N':
-        sleep(1)
-        print('看下庄家牌：')
-        print('庄家手牌为：' + hisrealhand)
-        sleep(1)
-        while calculate_hand(dealer_hand) < 17:
-            print('Dealer 没有到17， 给dealer发牌！')
-            sleep(1)
-            deal_card(deck, dealer_hand)
-            print('Dealer发了一张: %s' % dealer_hand[-1])
-            sleep(1)
-            hisrealhand += ' ' + dealer_hand[-1]
-            print('Dealer 现在的手牌为： ' + hisrealhand)
-            sleep(1)
-            if is_boosted(dealer_hand):
-                print('Dealer 爆了！你赢了！')
-                return playerwin
-
-        print('Dealer 牌发完了！现在计算谁获胜！')
-        sleep(2)
-        print('玩家手牌为: ' + myhand)
-        sleep(2)
-        print('Dealer 手牌为: ' + hisrealhand)
-        sleep(2)
-        if calculate_hand(dealer_hand) > calculate_hand(player_hand):
-            print('Dealer 获胜！')
-            return dealerwin
-        elif calculate_hand(dealer_hand) < calculate_hand(player_hand):
-            print('玩家获胜')
-            return playerwin
-        else:
-            print('打平!')
-            return draw
-
+            result = yes_choice(deck, player_hand, myhand, choice, hisrealhand, dealer_hand)
+        # else:
+        #     result = print('不好意思请根据提示项选择: \nPlease type y/n/split/double')
+    return result,choice, money, gamble_money
 
 # 根绝blackjack return的4种结果算钱
 def count_money(money, gamble_money):
-    result = blackjack()
+    money = float(money)
+    gamble_money = float(gamble_money)
+
+    result, choice, money, gamble_money = blackjack(gamble_money, money)
     if result == draw:
         money = money
         print('你现在还有%.1f的筹码。' % money)
@@ -174,18 +280,29 @@ def count_money(money, gamble_money):
     elif result == player21win:
         money += gamble_money * 1.5
         print('你现在还有%.1f的筹码。' % money)
+    elif result == playerwin and choice == 'double':
+        money += (2 * gamble_money)
+        print('你现在还有%.1f的筹码。' % money)
+    elif result == dealerwin and choice == 'double':
+        money -= (2 * gamble_money)
+        print('你现在还有%.1f的筹码。' % money)
     return money
 
 
 # playerwin, dealerwin, draw, player21win
 def play_blackjack():
-    money = float(input('要换多少筹码?'))
+    money = [inquirer.Text('cash', message="换多少筹码？", validate=lambda _, x: re.match('^[0-9,-_.]*[\.[0-9]*$', x))]
+    money = inquirer.prompt(money)
+    money = float(money.get('cash'))
+    print(money)
     try_count = 0
-    while money > 0:
+    while float(money) > 0:
         print('你现在有 %.1f 筹码.' % money)
         for i in range(5):
-            gamble_money = float(input('这局压多少? '))
-            if gamble_money > money or gamble_money == 0:
+            gamble_money = [inquirer.Text('chips', message="这局压多少？", validate=lambda _, x: re.match('^[0-9,-_.]*[\.[0-9]*$', x))]
+            gamble_money = inquirer.prompt(gamble_money)
+            gamble_money = gamble_money.get('chips')
+            if float(gamble_money) > money or float(gamble_money) == 0.0:
                 print('好好压!')
                 try_count += 1
             else:
@@ -195,22 +312,25 @@ def play_blackjack():
             break
 
         money = count_money(money, gamble_money)
-        go_on = input('还玩么？ y/n ')
-        if go_on == 'n' or go_on == 'N' or go_on == 'n\'' or go_on == 'N\'':
+        go_on = inquirer.prompt(confirm)
+        go_on = go_on.get('confirmed')
+        if not go_on:
             print('你选择了退出！')
             break
-    if try_count >= 5 or go_on == 'n' or go_on == 'N' or go_on == 'n\'' or go_on == 'N\'':
-        return
-
-    print('你没筹码了！')
-    refill = input('要换新的筹码继续玩么？y/n ')
-    if refill == 'y' or refill == 'Y' or refill == 'y\'' or refill == 'Y\'':
-        play_blackjack()
+    if try_count >= 5 or go_on == 'no':
+        return False
+    if float(money) <= 0:
+        print('你没筹码了！')
+        refill = inquirer.prompt(rechip)
+        refill = refill.get('confirmed')
+        return refill
 
 
 def main():
-    play_blackjack()
+    refill = play_blackjack()
+    while refill:
+        play_blackjack()
 
 
 if __name__ == '__main__':
-    main()
+    main()x`
